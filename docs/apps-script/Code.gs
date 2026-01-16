@@ -73,7 +73,9 @@ function buildFromSingleSheet(ss, sheet) {
 }
 
 function readRows(sheet) {
-  const values = sheet.getDataRange().getValues()
+  const range = sheet.getDataRange()
+  const values = range.getValues()
+  const richValues = range.getRichTextValues()
   if (!values.length) return []
 
   const headers = values[0].map((value) => String(value).trim().toLowerCase())
@@ -81,11 +83,17 @@ function readRows(sheet) {
 
   return rows
     .filter((row) => row.some((cell) => cell !== '' && cell !== null))
-    .map((row) => {
-      const record = {}
+    .map((row, rowIndex) => {
+      const record = {
+        __richtext: {},
+      }
       headers.forEach((header, index) => {
         if (!header) return
         record[header] = row[index]
+        const richCell = richValues[rowIndex + 1][index]
+        if (richCell) {
+          record.__richtext[header] = richCell
+        }
       })
       return record
     })
@@ -314,18 +322,23 @@ function buildStepIndex(rows) {
 function parseRowBlocks(row, tags, markerColor) {
   const blocks = []
   const body = getString(row, 'body')
+  const richBody = getRichText(row, 'body')
   const imageUrl = normalizeDriveUrl(getString(row, 'image'))
   const lines = body ? String(body).split(/\r?\n/) : []
+  const richLines = richBody ? richTextToLines(richBody) : null
+  const useRich = richLines && richLines.length === lines.length
   const textLines = []
+  const textHtmlLines = []
   let tocEntries = []
 
   const flushText = () => {
     if (!textLines.length) return
-    const block = buildTextBlock(textLines, markerColor)
+    const block = buildTextBlock(textLines, textHtmlLines, markerColor)
     if (block) {
       blocks.push(block)
     }
     textLines.length = 0
+    textHtmlLines.length = 0
   }
 
   const flushToc = () => {
@@ -339,9 +352,10 @@ function parseRowBlocks(row, tags, markerColor) {
     tocEntries = []
   }
 
-  lines.forEach((rawLine) => {
+  lines.forEach((rawLine, lineIndex) => {
     const line = String(rawLine || '')
     const trimmed = line.trim()
+    const richLine = useRich ? richLines[lineIndex] : ''
 
     if (trimmed.startsWith('#page')) {
       const entry = parsePageDirective(trimmed, tags)
@@ -366,6 +380,9 @@ function parseRowBlocks(row, tags, markerColor) {
     }
 
     textLines.push(line)
+    if (useRich) {
+      textHtmlLines.push(richLine)
+    }
   })
 
   flushToc()
@@ -401,7 +418,7 @@ function parsePageDirective(line, tags) {
   }
 }
 
-function buildTextBlock(lines, markerColor) {
+function buildTextBlock(lines, htmlLines, markerColor) {
   const firstIndex = lines.findIndex((line) => String(line).trim() !== '')
   if (firstIndex < 0) {
     return null
@@ -412,14 +429,24 @@ function buildTextBlock(lines, markerColor) {
   if (hintMatch) {
     const title = hintMatch[1].trim()
     const bodyLines = lines.slice(firstIndex + 1)
+    const bodyHtmlLines = htmlLines.length ? htmlLines.slice(firstIndex + 1) : []
     const answerLines = []
+    const answerHtmlLines = []
     const filtered = []
-    bodyLines.forEach((line) => {
+    const filteredHtml = []
+    bodyLines.forEach((line, index) => {
       const trimmed = String(line).trim()
+      const htmlLine = bodyHtmlLines.length ? bodyHtmlLines[index] || '' : ''
       if (trimmed.startsWith('答え')) {
         answerLines.push(trimmed)
+        if (bodyHtmlLines.length) {
+          answerHtmlLines.push(htmlLine)
+        }
       } else {
         filtered.push(line)
+        if (bodyHtmlLines.length) {
+          filteredHtml.push(htmlLine)
+        }
       }
     })
 
@@ -428,7 +455,9 @@ function buildTextBlock(lines, markerColor) {
       type: 'hint',
       title: title,
       body: filtered.join('\n').trim(),
+      bodyHtml: filteredHtml.length ? joinHtmlLines(filteredHtml) : '',
       answer: answerLines.join('\n').trim(),
+      answerHtml: answerHtmlLines.length ? joinHtmlLines(answerHtmlLines) : '',
       markerColor: markerColor,
     }
   }
@@ -437,6 +466,7 @@ function buildTextBlock(lines, markerColor) {
     id: `text-${Math.random().toString(36).slice(2, 8)}`,
     type: 'text',
     text: lines.join('\n').trim(),
+    textHtml: htmlLines.length ? joinHtmlLines(htmlLines) : '',
   }
 }
 
@@ -457,6 +487,11 @@ function getFirstStep(rows) {
     if (token.label) return token
   }
   return { label: '', color: '' }
+}
+
+function getRichText(row, key) {
+  if (!row.__richtext) return null
+  return row.__richtext[key] || null
 }
 
 function groupBlocks(entries) {
@@ -540,6 +575,79 @@ function parseTags(value) {
     .split(/[\s,|]+/)
     .map((item) => item.trim())
     .filter(Boolean)
+}
+
+function richTextToLines(richText) {
+  if (!richText) return []
+  const runs = richText.getRuns()
+  const lines = []
+  let current = ''
+
+  runs.forEach((run) => {
+    const text = run.getText()
+    const style = run.getTextStyle()
+    const parts = String(text).split('\n')
+
+    parts.forEach((part, index) => {
+      if (part) {
+        current += styleToHtml(part, style)
+      }
+      if (index < parts.length - 1) {
+        lines.push(current)
+        current = ''
+      }
+    })
+  })
+
+  lines.push(current)
+  return lines
+}
+
+function styleToHtml(text, style) {
+  let output = escapeHtml(text)
+  if (!output) return output
+
+  const color = style && style.getForegroundColor ? style.getForegroundColor() : ''
+  if (color) {
+    output = `<span style="color:${color}">${output}</span>`
+  }
+
+  if (style && style.isUnderline && style.isUnderline()) {
+    output = `<u>${output}</u>`
+  }
+
+  if (style && style.isItalic && style.isItalic()) {
+    output = `<em>${output}</em>`
+  }
+
+  if (style && style.isBold && style.isBold()) {
+    output = `<strong>${output}</strong>`
+  }
+
+  return output
+}
+
+function joinHtmlLines(lines) {
+  return lines.map((line) => line || '').join('<br />')
+}
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, (char) => {
+    switch (char) {
+      case '&':
+        return '&amp;'
+      case '<':
+        return '&lt;'
+      case '>':
+        return '&gt;'
+      case '"':
+        return '&quot;'
+      case "'":
+        return '&#39;'
+      default:
+        return char
+    }
+  })
 }
 
 function parseStepToken(value) {

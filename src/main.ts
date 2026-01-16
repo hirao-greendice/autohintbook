@@ -138,13 +138,13 @@ function renderBlock(block: Block): string {
     case 'text':
       return `
         <p class="${sharedClass} text">
-          ${formatText(block.text)}
+          ${formatText(block.text, block.textHtml)}
         </p>
       `
     case 'note':
       return `
         <p class="${sharedClass} note">
-          ${formatText(block.text)}
+          ${formatText(block.text, block.textHtml)}
         </p>
       `
     case 'image':
@@ -232,7 +232,7 @@ function renderListBlock(block: ListBlock, sharedClass: string): string {
 function renderHintBlock(block: HintBlock, sharedClass: string): string {
   const markerStyle = block.markerColor ? `style="background:${block.markerColor}"` : ''
   const answer = block.answer
-    ? `<p class="hint-answer">${formatText(block.answer)}</p>`
+    ? `<p class="hint-answer">${formatText(block.answer, block.answerHtml)}</p>`
     : ''
 
   return `
@@ -243,7 +243,7 @@ function renderHintBlock(block: HintBlock, sharedClass: string): string {
         <span class="hint-marker" ${markerStyle}></span>
         <span class="hint-heading">${escapeHtml(block.title)}</span>
       </div>
-      <p class="hint-body">${formatText(block.body)}</p>
+      <p class="hint-body">${formatText(block.body, block.bodyHtml)}</p>
       ${answer}
     </div>
   `
@@ -304,7 +304,9 @@ function escapeHtml(value: string): string {
   })
 }
 
-function formatText(value: string): string {
+function formatText(value?: string, html?: string): string {
+  if (html) return html
+  if (!value) return ''
   return escapeHtml(value).replace(/\n/g, '<br />')
 }
 

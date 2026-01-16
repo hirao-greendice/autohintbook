@@ -65,12 +65,14 @@ export interface HeadingBlock extends BlockBase {
 export interface TextBlock extends BlockBase {
   type: 'text'
   text: string
+  textHtml?: string
   size?: TextSize
 }
 
 export interface NoteBlock extends BlockBase {
   type: 'note'
   text: string
+  textHtml?: string
   size?: TextSize
 }
 
@@ -88,7 +90,9 @@ export interface HintBlock extends BlockBase {
   type: 'hint'
   title: string
   body: string
+  bodyHtml?: string
   answer?: string
+  answerHtml?: string
   markerColor?: string
 }
 
