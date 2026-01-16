@@ -8,9 +8,11 @@ Create a sheet named `book` (or `main`). Use these columns:
 - `ord`
 - `page_no`
 - `step`
+- `step_label` (optional)
 - `body`
 - `image`
 - `page_tag`
+- `side_segments` (optional)
 
 ### How it works
 - Each row = one content row on a page.
@@ -43,6 +45,17 @@ You can embed a color in the `step` value:
 - `LAST,c59319`
 
 If no color is provided, the script uses default colors.
+
+### Step label layout (optional)
+Add `step_label` to control how the side label is rendered for that step.
+You can use line breaks in the cell and rich-text styling (font size, bold, etc).
+If multiple rows use the same step, the first non-empty `step_label` is used.
+
+### Side labels override (optional)
+If you want to control which side labels appear on that page, add `side_segments`.
+Format:
+- `1st#cc4b5e|2nd#2e71b3|LAST#c59319`
+Use `\\n` inside the label for manual line breaks (example: `1st\\n1`).
 
 ## Two-sheet mode (advanced)
 

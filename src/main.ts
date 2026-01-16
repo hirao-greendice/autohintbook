@@ -30,6 +30,14 @@ async function init() {
 
 function renderApp(book: BookData) {
   const pageCount = book.pages.length
+  const previewPages: PageData[] = [
+    {
+      pageNo: 0,
+      title: '',
+      blocks: [],
+    },
+    ...book.pages,
+  ]
 
   app.innerHTML = `
     <div class="app">
@@ -50,7 +58,7 @@ function renderApp(book: BookData) {
         <div class="source">Source: ${escapeHtml(getSourceLabel())}</div>
       </section>
       <main class="page-deck">
-        ${book.pages.map(renderPage).join('')}
+        ${previewPages.map(renderPage).join('')}
       </main>
     </div>
   `
@@ -62,6 +70,9 @@ function renderApp(book: BookData) {
 }
 
 function renderPage(page: PageData): string {
+  if (page.pageNo === 0 && !page.title && page.blocks.length === 0) {
+    return `<article class="page page--blank"></article>`
+  }
   const isOdd = page.pageNo % 2 !== 0
   const leftLabel = isOdd ? page.innerLabel : page.outerLabel
   const rightLabel = isOdd ? page.outerLabel : page.innerLabel
@@ -104,7 +115,7 @@ function renderSide(
         .map(
           (segment) => `
             <div class="side-segment" style="background:${segment.color}">
-              <span>${escapeHtml(segment.label)}</span>
+              <span>${formatLabel(segment.label, segment.labelHtml)}</span>
             </div>
           `,
         )
@@ -305,6 +316,12 @@ function escapeHtml(value: string): string {
 }
 
 function formatText(value?: string, html?: string): string {
+  if (html) return html
+  if (!value) return ''
+  return escapeHtml(value).replace(/\n/g, '<br />')
+}
+
+function formatLabel(value?: string, html?: string): string {
   if (html) return html
   if (!value) return ''
   return escapeHtml(value).replace(/\n/g, '<br />')

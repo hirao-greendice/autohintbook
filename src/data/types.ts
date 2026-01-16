@@ -23,6 +23,7 @@ export interface PageData {
 
 export interface PageSideSegment {
   label: string
+  labelHtml?: string
   color: string
 }
 

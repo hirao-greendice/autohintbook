@@ -152,7 +152,7 @@ body {
   --page-inner: var(--inner);
   --page-header-ink: var(--header-ink);
   --header-h: 8%;
-  --side-w: 5%;
+  --side-w: 6.5%;
   --content-top: 12%;
   --content-sides: 10%;
   --content-bottom: 5%;
@@ -219,9 +219,12 @@ body {
 }
 
 .page-side .side-segment span {
-  writing-mode: vertical-rl;
+  writing-mode: horizontal-tb;
   text-orientation: mixed;
-  transform: rotate(180deg);
+  transform: none;
+  white-space: pre-line;
+  line-height: 1.1;
+  text-align: center;
 }
 
 .page-side-left {
@@ -265,7 +268,7 @@ body {
   font-size: 13.5pt;
   letter-spacing: 0.3em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: #000000;
   font-weight: 700;
 }
 
@@ -392,11 +395,18 @@ body {
   min-width: 54pt;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.12em;
+  color: #000000;
+  font-weight: 700;
 }
 
 .toc-leader {
-  color: var(--muted);
-  letter-spacing: 0.2em;
+  color: #000000;
+  letter-spacing: 0;
+  font-size: 12pt;
+}
+
+.page--blank {
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.18);
 }
 
 .list {

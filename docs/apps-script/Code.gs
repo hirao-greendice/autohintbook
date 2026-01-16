@@ -118,7 +118,7 @@ function buildPage(row) {
     title: title || `Page ${pageNo}`,
     outerLabel: getString(row, 'outer_label'),
     innerLabel: getString(row, 'inner_label'),
-    sideSegments: parseSegments(getString(row, 'side_segments')),
+    sideSegments: normalizeSegments(parseSegments(getString(row, 'side_segments'))),
     theme: theme,
     blocks: [],
   }
@@ -227,7 +227,10 @@ function buildSinglePage(pageEntry, steps, tags) {
   const currentStepLabel = stepInfo.label
   const currentStepColor = stepInfo.color || deriveStepColor(currentStepLabel)
   const theme = buildTheme(rows, currentStepColor)
-  const sideSegments = buildSideSegments(steps, currentStepLabel)
+  const sideSegmentsText = getFirstString(rows, ['side_segments', 'side_labels'])
+  const sideSegments = sideSegmentsText
+    ? normalizeSegments(parseSegments(sideSegmentsText))
+    : buildSideSegments(steps, currentStepLabel)
 
   const blocks = []
   const orderedRows = rows
@@ -276,11 +279,27 @@ function buildSideSegments(steps, currentLabel) {
     const isActive = index >= 0 ? idx <= index : true
     segments.push({
       label: isActive ? step.label : '',
+      labelHtml: isActive ? step.labelHtml || '' : '',
       color: isActive ? step.color : INACTIVE_SEGMENT_COLOR,
     })
   })
 
   return segments
+}
+
+function normalizeSegments(segments) {
+  if (!segments || !segments.length) return []
+  return segments.map((segment) => {
+    const label = segment.label || ''
+    const color = segment.color || deriveStepColor(label)
+    const labelHtml =
+      label.indexOf('\\n') >= 0 ? escapeHtml(label).replace(/\\n/g, '<br />') : ''
+    return {
+      label: label,
+      labelHtml: labelHtml,
+      color: color || INACTIVE_SEGMENT_COLOR,
+    }
+  })
 }
 
 function buildTagIndex(rows) {
@@ -313,8 +332,23 @@ function buildStepIndex(rows) {
     const token = parseStepToken(getString(row, 'step'))
     if (!token.label || seen[token.label]) return
     const color = token.color || deriveStepColor(token.label)
-    list.push({ label: token.label, color: color })
-    seen[token.label] = true
+    const labelHtml = buildStepLabelHtml(row)
+    list.push({ label: token.label, color: color, labelHtml: labelHtml })
+    seen[token.label] = list.length - 1
+  })
+
+  rows.forEach((row) => {
+    const token = parseStepToken(getString(row, 'step'))
+    if (!token.label) return
+    const index = seen[token.label]
+    if (index === undefined) return
+    const entry = list[index]
+    if (!entry.labelHtml) {
+      const labelHtml = buildStepLabelHtml(row)
+      if (labelHtml) {
+        entry.labelHtml = labelHtml
+      }
+    }
   })
   return list
 }
@@ -577,6 +611,24 @@ function parseTags(value) {
     .filter(Boolean)
 }
 
+function buildStepLabelHtml(row) {
+  const rich = getRichText(row, 'step_label')
+  if (rich) {
+    const html = richTextToHtml(rich)
+    if (html) return html
+  }
+  const plain = getString(row, 'step_label')
+  if (plain) {
+    return escapeHtml(plain).replace(/\n/g, '<br />')
+  }
+  return ''
+}
+
+function richTextToHtml(richText) {
+  const lines = richTextToLines(richText)
+  return lines.length ? joinHtmlLines(lines) : ''
+}
+
 function richTextToLines(richText) {
   if (!richText) return []
   const runs = richText.getRuns()
@@ -608,12 +660,29 @@ function styleToHtml(text, style) {
   if (!output) return output
 
   const color = style && style.getForegroundColor ? style.getForegroundColor() : ''
+  const background =
+    style && style.getBackgroundColor ? style.getBackgroundColor() : ''
+  const fontSize = style && style.getFontSize ? style.getFontSize() : null
+  const spanStyles = []
   if (color) {
-    output = `<span style="color:${color}">${output}</span>`
+    spanStyles.push(`color:${color}`)
+  }
+  if (background) {
+    spanStyles.push(`background-color:${background}`)
+  }
+  if (fontSize) {
+    spanStyles.push(`font-size:${fontSize}px`)
+  }
+  if (spanStyles.length) {
+    output = `<span style="${spanStyles.join(';')}">${output}</span>`
   }
 
   if (style && style.isUnderline && style.isUnderline()) {
     output = `<u>${output}</u>`
+  }
+
+  if (style && style.isStrikethrough && style.isStrikethrough()) {
+    output = `<s>${output}</s>`
   }
 
   if (style && style.isItalic && style.isItalic()) {
